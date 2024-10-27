@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "906466901770",
+    "project_id": "travelease-ca8e6",
+    "storage_bucket": "travelease-ca8e6.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:906466901770:android:daad25b06d1c6ef11284f3",
+        "android_client_info": {
+          "package_name": "com.example.travel_ease"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDEvheLab5QUOthv9dRlHUIr8CqPO42-1U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
