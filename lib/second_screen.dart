@@ -1,7 +1,26 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
-class SecondScreen extends StatelessWidget {
+import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+class SecondScreen extends StatefulWidget {
   const SecondScreen({super.key});
+
+  @override
+  State<SecondScreen> createState() => _SecondScreenState();
+}
+
+class _SecondScreenState extends State<SecondScreen> {
+
+  final Completer<GoogleMapController> _controller =
+      Completer<GoogleMapController>();
+
+  static const CameraPosition _kGooglePlex = CameraPosition(
+    target: LatLng(37.42796133580664, -122.085749655962),
+    zoom: 14.4746,
+  );
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -9,8 +28,12 @@ class SecondScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Pantalla 2'),
       ),
-      body: const Center(
-        child: Text('¡Bienvenido a la Pantalla 2!'),
+      body: GoogleMap(
+        mapType: MapType.normal,
+        initialCameraPosition: _kGooglePlex,
+        onMapCreated: (GoogleMapController controller) {
+          _controller.complete(controller);
+        },
       ),
     );
   }
