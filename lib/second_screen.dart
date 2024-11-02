@@ -27,7 +27,7 @@ class _SecondScreenState extends State<SecondScreen> {
   bool _isDirectionsVisible = true; // Controla la visibilidad del widget de direcciones
 
   final directions.GoogleMapsDirections _directions =
-      directions.GoogleMapsDirections(apiKey: 'AIzaSyDvuGaBnucJOW_EvD-e4yNKj553jEiynSs');
+      directions.GoogleMapsDirections(apiKey: 'TU_API_KEY');
 
   @override
   void initState() {
