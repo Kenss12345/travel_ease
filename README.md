@@ -2,13 +2,11 @@
 
 **TravelEase** es una innovadora aplicación móvil desarrollada en Flutter que facilita la navegación en el transporte público de Huancayo, Junín, Perú. Con el objetivo de mejorar la movilidad urbana y contribuir al ODS 11, la aplicación permite a los usuarios ingresar su ubicación actual y destino, ofreciendo rutas óptimas de transporte público y opciones de caminata. Esto no solo simplifica la experiencia de los usuarios, sino que también fomenta un sistema de transporte más inclusivo, seguro y sostenible, vital para el desarrollo de ciudades resilientes.
 
-![Captura de Pantalla de TravelEase](https://github.com/Kenss12345/travel_ease/blob/main/WhatsApp%20Image%202024-11-02%20at%202.19.14%20AM%20(1).jpeg?raw=true)
+![Captura de Pantalla de TravelEase](https://github.com/Kenss12345/travel_ease/blob/main/WhatsApp%20Image%202024-11-02%20at%202.15.59%20PM%20(1).jpeg?raw=true)
 
-![Captura de Pantalla de TravelEase](https://github.com/Kenss12345/travel_ease/blob/main/WhatsApp%20Image%202024-11-02%20at%202.19.14%20AM.jpeg?raw=true)
+![Captura de Pantalla de TravelEase](https://github.com/Kenss12345/travel_ease/blob/main/WhatsApp%20Image%202024-11-02%20at%202.15.59%20PM%20(2).jpeg?raw=true)
 
-![Captura de Pantalla de TravelEase](https://github.com/Kenss12345/travel_ease/blob/main/WhatsApp%20Image%202024-11-02%20at%202.19.13%20AM%20(1).jpeg?raw=true)
-
-![Captura de Pantalla de TravelEase](https://github.com/Kenss12345/travel_ease/blob/main/WhatsApp%20Image%202024-11-02%20at%202.19.13%20AM.jpeg?raw=true)
+![Captura de Pantalla de TravelEase](https://github.com/Kenss12345/travel_ease/blob/main/WhatsApp%20Image%202024-11-02%20at%202.15.59%20PM.jpeg?raw=true)
 
 ## Funcionalidades
 
