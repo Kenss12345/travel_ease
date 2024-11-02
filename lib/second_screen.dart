@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_webservice/directions.dart' as directions;
 
 class SecondScreen extends StatefulWidget {
   const SecondScreen({super.key});
@@ -13,48 +14,23 @@ class SecondScreen extends StatefulWidget {
 
 class _SecondScreenState extends State<SecondScreen> {
   late GoogleMapController mapController;
-  LatLng _currentPosition = const LatLng(-12.04318, -77.02824); // Coordenadas iniciales de ejemplo
+  LatLng _currentPosition = const LatLng(-12.04318, -77.02824);
   Marker? _startMarker;
   Marker? _destinationMarker;
-  Set<Polyline> _polylines = {}; // Almacena las rutas que se mostrarán en el mapa
+  Set<Polyline> _polylines = {};
+  bool _startSelected = false;
+  bool _destinationSelected = false;
+  bool _isSearchEnabled = false;
+
+  final directions.GoogleMapsDirections _directions =
+      directions.GoogleMapsDirections(apiKey: 'AIzaSyDvuGaBnucJOW_EvD-e4yNKj553jEiynSs');
 
   @override
   void initState() {
     super.initState();
     _getUserLocation();
-    _loadRoutes();
   }
 
-  // Función para cargar rutas desde Firebase
-  Future<void> _loadRoutes() async {
-    final routes = await fetchRoutes();
-    Set<Polyline> polylines = {};
-
-    for (var route in routes) {
-      List<LatLng> stops = (route['stops'] as List)
-          .map((stop) => LatLng(stop.latitude, stop.longitude))
-          .toList();
-
-      polylines.add(Polyline(
-        polylineId: PolylineId(route['route_id']),
-        points: stops,
-        color: Color(int.parse("0xFF${route['color'].substring(1)}")), // Convierte el color hex a formato Flutter
-        width: 5,
-      ));
-    }
-
-    setState(() {
-      _polylines = polylines;
-    });
-  }
-
-  // Función para obtener rutas desde Firestore
-  Future<List<Map<String, dynamic>>> fetchRoutes() async {
-    final snapshot = await FirebaseFirestore.instance.collection('public_transport_routes').get();
-    return snapshot.docs.map((doc) => doc.data()).toList();
-  }
-
-  // Obtiene la ubicación actual del usuario
   Future<void> _getUserLocation() async {
     bool serviceEnabled;
     LocationPermission permission;
@@ -77,17 +53,16 @@ class _SecondScreenState extends State<SecondScreen> {
     }
 
     Position position = await Geolocator.getCurrentPosition();
-    setState(() {
-      _currentPosition = LatLng(position.latitude, position.longitude);
-    });
+    _currentPosition = LatLng(position.latitude, position.longitude);
+    mapController.animateCamera(
+      CameraUpdate.newLatLngZoom(_currentPosition, 14),
+    );
   }
 
-  // Configura el controlador del mapa
   void _onMapCreated(GoogleMapController controller) {
     mapController = controller;
   }
 
-  // Configura la ubicación de inicio con un marcador
   void _setStartLocation(LatLng location) {
     setState(() {
       _startMarker = Marker(
@@ -95,10 +70,10 @@ class _SecondScreenState extends State<SecondScreen> {
         position: location,
         infoWindow: const InfoWindow(title: 'Ubicación de Inicio'),
       );
+      _startSelected = true;
     });
   }
 
-  // Configura la ubicación de destino con un marcador
   void _setDestinationLocation(LatLng location) {
     setState(() {
       _destinationMarker = Marker(
@@ -106,8 +81,145 @@ class _SecondScreenState extends State<SecondScreen> {
         position: location,
         infoWindow: const InfoWindow(title: 'Ubicación de Destino'),
       );
+      _destinationSelected = true;
+      _isSearchEnabled = true;
     });
   }
+
+  Future<void> _showRoute() async {
+    if (!_startSelected || !_destinationSelected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Seleccione ambas ubicaciones de inicio y destino')),
+      );
+      return;
+    }
+
+    Set<Polyline> polylines = {};
+
+    final nearestStop = await _getNearestStop();
+    final walkToStartRoute = await _getWalkingRoute(_currentPosition, nearestStop);
+    
+    if (walkToStartRoute != null) {
+      polylines.add(walkToStartRoute);
+    } else {
+      print("No se pudo obtener la ruta caminando hacia la parada más cercana.");
+    }
+
+    final transportRoutes = await _getOptimalTransportRoutes(nearestStop, _destinationMarker!.position);
+    polylines.addAll(transportRoutes);
+
+    final finalWalk = await _getWalkingRoute(transportRoutes.last.points.last, _destinationMarker!.position);
+    if (finalWalk != null) {
+      polylines.add(finalWalk);
+    } else {
+      print("No se pudo obtener la ruta caminando desde la última parada hasta el destino.");
+    }
+
+    setState(() {
+      _polylines = polylines;
+    });
+  }
+
+  Future<LatLng> _getNearestStop() async {
+    final snapshot = await FirebaseFirestore.instance.collection('public_transport_routes').get();
+    LatLng nearestStop = _currentPosition;
+    double minDistance = double.infinity;
+
+    for (var doc in snapshot.docs) {
+      List<LatLng> stops = (doc['stops'] as List)
+          .map((stop) => LatLng((stop as GeoPoint).latitude, (stop as GeoPoint).longitude))
+          .toList();
+
+      for (var stop in stops) {
+        final distance = Geolocator.distanceBetween(
+          _currentPosition.latitude,
+          _currentPosition.longitude,
+          stop.latitude,
+          stop.longitude,
+        );
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearestStop = stop;
+        }
+      }
+    }
+    return nearestStop;
+  }
+
+  Future<Polyline?> _getWalkingRoute(LatLng start, LatLng end) async {
+    final response = await _directions.directionsWithLocation(
+      directions.Location(lat: start.latitude, lng: start.longitude),
+      directions.Location(lat: end.latitude, lng: end.longitude),
+      travelMode: directions.TravelMode.walking,
+    );
+
+    if (response.isOkay) {
+      final points = _convertToLatLng(response.routes[0].overviewPolyline.points);
+      return Polyline(
+        polylineId: PolylineId('walk_route_${start}_${end}'),
+        points: points,
+        color: Colors.black,
+        patterns: [PatternItem.dot, PatternItem.gap(10)],
+        width: 3,
+      );
+    } else {
+      print("Error en la respuesta de Directions API: ${response.errorMessage}");
+    }
+    return null;
+  }
+
+  Future<Set<Polyline>> _getOptimalTransportRoutes(LatLng start, LatLng end) async {
+    final snapshot = await FirebaseFirestore.instance.collection('public_transport_routes').get();
+    Set<Polyline> optimalRoutes = {};
+
+    for (var doc in snapshot.docs) {
+      List<LatLng> routePoints = (doc['stops'] as List)
+          .map((stop) => LatLng((stop as GeoPoint).latitude, (stop as GeoPoint).longitude))
+          .toList();
+
+      optimalRoutes.add(Polyline(
+        polylineId: PolylineId(doc.id),
+        points: routePoints,
+        color: Color(int.parse("0xFF${doc['color'].substring(1)}")),
+        width: 5,
+      ));
+    }
+    return optimalRoutes;
+  }
+
+  List<LatLng> _convertToLatLng(String encoded) {
+  List<LatLng> poly = [];
+  int index = 0, len = encoded.length;
+  int lat = 0, lng = 0;
+
+  while (index < len) {
+    // Decodificación de la latitud
+    int b, shift = 0, result = 0;
+    do {
+      b = encoded.codeUnitAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    int dlat = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+    lat += dlat;
+
+    // Decodificación de la longitud
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.codeUnitAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    int dlng = ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+    lng += dlng;
+
+    // Agregar el nuevo punto a la lista
+    poly.add(LatLng(lat / 1E5, lng / 1E5));
+  }
+
+  return poly;
+}
 
   @override
   Widget build(BuildContext context) {
@@ -127,11 +239,14 @@ class _SecondScreenState extends State<SecondScreen> {
               if (_startMarker != null) _startMarker!,
               if (_destinationMarker != null) _destinationMarker!,
             },
-            polylines: _polylines, // Muestra las rutas cargadas como polilíneas
+            polylines: _polylines,
             myLocationEnabled: true,
             onTap: (LatLng position) {
-              // Aquí puedes decidir si establecer inicio o destino basado en lógica.
-              _setStartLocation(position);
+              if (_startSelected && !_destinationSelected) {
+                _setDestinationLocation(position);
+              } else if (!_startSelected) {
+                _setStartLocation(position);
+              }
             },
           ),
           Positioned(
@@ -140,29 +255,21 @@ class _SecondScreenState extends State<SecondScreen> {
             child: Column(
               children: [
                 ElevatedButton(
-                  onPressed: () {
-                    // Configura el marcador de inicio
-                    print('Establecer Ubicación de Inicio');
-                    _setStartLocation(_currentPosition);
-                  },
-                  child: const Text('Ubicación de Inicio'),
+                  onPressed: !_startSelected
+                      ? () => _setStartLocation(_currentPosition)
+                      : null,
+                  child: const Text('Fijar Ubicación de Inicio'),
                 ),
                 const SizedBox(height: 10),
                 ElevatedButton(
-                  onPressed: () {
-                    // Configura el marcador de destino
-                    print('Establecer Ubicación de Destino');
-                    _setDestinationLocation(_currentPosition);
-                  },
-                  child: const Text('Ubicación de Destino'),
+                  onPressed: _startSelected && !_destinationSelected
+                      ? () => _setDestinationLocation(_currentPosition)
+                      : null,
+                  child: const Text('Fijar Ubicación de Destino'),
                 ),
                 const SizedBox(height: 10),
                 ElevatedButton(
-                  onPressed: () {
-                    // Lógica para buscar la ruta entre inicio y destino
-                    print('Buscar Ruta');
-                    // Aquí se podría implementar lógica de búsqueda entre inicio y destino
-                  },
+                  onPressed: _isSearchEnabled ? _showRoute : null,
                   child: const Text('Buscar Ruta'),
                 ),
               ],
@@ -172,30 +279,4 @@ class _SecondScreenState extends State<SecondScreen> {
       ),
     );
   }
-
-  /*final Completer<GoogleMapController> _controller =
-      Completer<GoogleMapController>();
-
-  static const CameraPosition _kGooglePlex = CameraPosition(
-    target: LatLng(37.42796133580664, -122.085749655962),
-    zoom: 14.4746,
-  );
-
-
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Pantalla 2'),
-      ),
-      body: GoogleMap(
-        mapType: MapType.normal,
-        initialCameraPosition: _kGooglePlex,
-        onMapCreated: (GoogleMapController controller) {
-          _controller.complete(controller);
-        },
-      ),
-    );
-  }*/
 }
